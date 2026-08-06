@@ -17,7 +17,7 @@ import authRoutes from "./routes/authRoutes.js";
 import conversationRoutes from "./routes/conversationRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import fileRoutes from "./routes/fileRoutes.js";
-
+import upload, { getUploadDir, STORAGE_TYPE } from "./config/storage.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 await connectDB();
@@ -76,6 +76,12 @@ if (process.env.NODE_ENV !== "production") {
   app.use(morgan("dev"));
 }
 
+if (STORAGE_TYPE !== "s3") {
+  const dir = getUploadDir();
+  if (dir) {
+    app.use("/uploads", express.static(dir));
+  }
+}
 // ── Static uploads ─────────────────────────────────────────────────
 app.use(
   "/uploads",

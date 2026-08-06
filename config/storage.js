@@ -4,8 +4,15 @@ import multer from "multer";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const STORAGE_TYPE = process.env.STORAGE_TYPE || "local";
 const MAX_FILE_SIZE = (Number(process.env.MAX_FILE_SIZE_MB) || 15) * 1024 * 1024;
+
+// Vercel / AWS Lambda = read-only FS except /tmp
+const isServerless =
+  !!process.env.VERCEL ||
+  !!process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  !!process.env.FUNCTION_NAME;
 
 const fileFilter = (req, file, cb) => {
   const allowed = [".txt", ".pdf", ".docx", ".csv", ".md"];
@@ -18,9 +25,10 @@ const fileFilter = (req, file, cb) => {
 };
 
 let upload;
+let uploadDir = null;
 
 if (STORAGE_TYPE === "s3") {
-  // Lazy-load AWS deps only when needed so local-only setups don't require them
+  // Lazy-load AWS deps only when needed
   const { S3Client } = await import("@aws-sdk/client-s3");
   const multerS3 = (await import("multer-s3")).default;
 
@@ -47,12 +55,30 @@ if (STORAGE_TYPE === "s3") {
   });
 } else {
   // Local disk storage
-  const uploadDir = path.join(__dirname, "..", process.env.LOCAL_UPLOAD_DIR || "uploads");
-  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  // On serverless use /tmp (only writable path). Elsewhere use project uploads folder.
+  uploadDir = isServerless
+    ? path.join("/tmp", process.env.LOCAL_UPLOAD_DIR || "uploads")
+    : path.join(__dirname, "..", process.env.LOCAL_UPLOAD_DIR || "uploads");
+
+  try {
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+  } catch (err) {
+    console.warn(
+      `[storage] Could not create upload dir "${uploadDir}": ${err.message}`,
+    );
+    // Do not crash the process — uploads will fail later with a clear error
+  }
 
   upload = multer({
     storage: multer.diskStorage({
-      destination: (req, file, cb) => cb(null, uploadDir),
+      destination: (req, file, cb) => {
+        if (!uploadDir || !fs.existsSync(uploadDir)) {
+          return cb(new Error("Upload directory is not available"));
+        }
+        cb(null, uploadDir);
+      },
       filename: (req, file, cb) => {
         const uniqueName = `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
         cb(null, uniqueName);
@@ -64,12 +90,11 @@ if (STORAGE_TYPE === "s3") {
 }
 
 /**
- * Returns a URL/path the frontend can use to fetch/download the file,
- * regardless of which storage backend is active.
+ * Returns a URL/path the frontend can use to fetch/download the file.
  */
 export const getFileUrl = (file) => {
   if (STORAGE_TYPE === "s3") {
-    return file.location; // multer-s3 attaches the public URL here
+    return file.location; // multer-s3 public URL
   }
   return `/uploads/${file.filename}`;
 };
@@ -77,6 +102,8 @@ export const getFileUrl = (file) => {
 export const getFileKey = (file) => {
   return STORAGE_TYPE === "s3" ? file.key : file.filename;
 };
+
+export const getUploadDir = () => uploadDir;
 
 export { STORAGE_TYPE };
 export default upload;
