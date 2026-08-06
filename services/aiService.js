@@ -18,7 +18,7 @@ if (PROVIDER === "openai") {
   }
   openaiClient = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY, // your AgentRouter key
-    baseURL: OPENAI_BASE_URL,           // ← required for AgentRouter
+    baseURL: OPENAI_BASE_URL, // ← required for AgentRouter
   });
 } else if (PROVIDER === "anthropic") {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -26,10 +26,12 @@ if (PROVIDER === "openai") {
   }
   anthropicClient = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY, // your AgentRouter key
-    baseURL: ANTHROPIC_BASE_URL,           // ← required for AgentRouter
+    baseURL: ANTHROPIC_BASE_URL, // ← required for AgentRouter
   });
 } else {
-  throw new Error(`Unsupported AI_PROVIDER: ${PROVIDER}. Use "openai" or "anthropic".`);
+  throw new Error(
+    `Unsupported AI_PROVIDER: ${PROVIDER}. Use "openai" or "anthropic".`,
+  );
 }
 
 /**
@@ -37,7 +39,18 @@ if (PROVIDER === "openai") {
  * `history` is an array of { role: "user"|"assistant", content: string }, oldest first.
  * `attachmentContext` (optional) is raw extracted text from uploaded files, prepended as context.
  */
-export const getChatCompletion = async (history, attachmentContext = "") => {
+export const getChatCompletion = async (
+  history = [],
+  attachmentContext = "",
+) => {
+  if (!Array.isArray(history)) {
+    console.warn(
+      "getChatCompletion received invalid history; defaulting to empty array.",
+      { historyType: typeof history, history },
+    );
+    history = [];
+  }
+
   const systemPrompt =
     "You are a helpful AI assistant in a chat application. Be clear and concise. " +
     "If file content is provided as context, use it to answer the user's questions accurately.";
@@ -55,7 +68,9 @@ export const getChatCompletion = async (history, attachmentContext = "") => {
       });
     }
 
-    messages.push(...history.map((m) => ({ role: m.role, content: m.content })));
+    messages.push(
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+    );
 
     const completion = await openaiClient.chat.completions.create({
       model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
@@ -67,7 +82,10 @@ export const getChatCompletion = async (history, attachmentContext = "") => {
   }
 
   if (PROVIDER === "anthropic") {
-    let userMessages = history.map((m) => ({ role: m.role, content: m.content }));
+    let userMessages = history.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
     if (attachmentContext) {
       // Prepend context to the first user message content since Anthropic
@@ -89,7 +107,9 @@ export const getChatCompletion = async (history, attachmentContext = "") => {
       messages: userMessages,
     });
 
-    return response.content.map((block) => (block.type === "text" ? block.text : "")).join("\n");
+    return response.content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("\n");
   }
 };
 
@@ -100,15 +120,15 @@ export const getChatCompletion = async (history, attachmentContext = "") => {
  */
 export const generateImage = async (prompt) => {
   const client =
-  openaiClient ||
-  new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: process.env.OPENAI_BASE_URL || "https://agentrouter.org/v1",
-  });
+    openaiClient ||
+    new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      baseURL: process.env.OPENAI_BASE_URL || "https://agentrouter.org/v1",
+    });
 
   if (!process.env.OPENAI_API_KEY) {
     throw new Error(
-      "Image generation requires OPENAI_API_KEY to be set, even if AI_PROVIDER=anthropic."
+      "Image generation requires OPENAI_API_KEY to be set, even if AI_PROVIDER=anthropic.",
     );
   }
 
