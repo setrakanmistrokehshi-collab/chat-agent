@@ -52,11 +52,14 @@ export const renameConversation = async (req, res, next) => {
     const conversation = await Conversation.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
       { title: title.trim() },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!conversation) return res.status(404).json({ message: "Conversation not found" });
-    res.json({ conversation });
+    const messages = await Message.find({ conversation: conversation._id }).sort({
+      createdAt: 1,
+    });
+    res.json({ conversation, messages });
   } catch (err) {
     next(err);
   }
