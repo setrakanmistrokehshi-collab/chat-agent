@@ -3,13 +3,31 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const PROVIDER = (process.env.AI_PROVIDER || "openai").toLowerCase();
 
+// AgentRouter base URLs
+const OPENAI_BASE_URL =
+  process.env.OPENAI_BASE_URL || "https://agentrouter.org/v1";
+const ANTHROPIC_BASE_URL =
+  process.env.ANTHROPIC_BASE_URL || "https://agentrouter.org";
+
 let openaiClient = null;
 let anthropicClient = null;
 
 if (PROVIDER === "openai") {
-  openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set");
+  }
+  openaiClient = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY, // your AgentRouter key
+    baseURL: OPENAI_BASE_URL,           // ← required for AgentRouter
+  });
 } else if (PROVIDER === "anthropic") {
-  anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY is not set");
+  }
+  anthropicClient = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY, // your AgentRouter key
+    baseURL: ANTHROPIC_BASE_URL,           // ← required for AgentRouter
+  });
 } else {
   throw new Error(`Unsupported AI_PROVIDER: ${PROVIDER}. Use "openai" or "anthropic".`);
 }
@@ -78,7 +96,12 @@ export const getChatCompletion = async (history, attachmentContext = "") => {
  * Returns a Buffer of PNG image bytes.
  */
 export const generateImage = async (prompt) => {
-  const client = openaiClient || new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client =
+  openaiClient ||
+  new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: process.env.OPENAI_BASE_URL || "https://agentrouter.org/v1",
+  });
 
   if (!process.env.OPENAI_API_KEY) {
     throw new Error(
