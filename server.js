@@ -82,13 +82,6 @@ if (STORAGE_TYPE !== "s3") {
     app.use("/uploads", express.static(dir));
   }
 }
-// ── Static uploads ─────────────────────────────────────────────────
-app.use(
-  "/uploads",
-  express.static(
-    path.join(__dirname, process.env.LOCAL_UPLOAD_DIR || "uploads"),
-  ),
-);
 
 // ── Health check ───────────────────────────────────────────────────
 app.get("/api/health", (req, res) =>

@@ -14,6 +14,12 @@ const isServerless =
   !!process.env.AWS_LAMBDA_FUNCTION_NAME ||
   !!process.env.FUNCTION_NAME;
 
+const sanitizeFilename = (name) => {
+  const baseName = path.basename(name || "");
+  const cleaned = baseName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return cleaned || "file";
+};
+
 const fileFilter = (req, file, cb) => {
   const allowed = [".txt", ".pdf", ".docx", ".csv", ".md"];
   const ext = path.extname(file.originalname).toLowerCase();
@@ -46,7 +52,8 @@ if (STORAGE_TYPE === "s3") {
       bucket: process.env.AWS_S3_BUCKET,
       contentType: multerS3.AUTO_CONTENT_TYPE,
       key: (req, file, cb) => {
-        const uniqueName = `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
+        const safeName = sanitizeFilename(file.originalname);
+        const uniqueName = `${Date.now()}-${safeName}`;
         cb(null, `uploads/${uniqueName}`);
       },
     }),
@@ -80,7 +87,8 @@ if (STORAGE_TYPE === "s3") {
         cb(null, uploadDir);
       },
       filename: (req, file, cb) => {
-        const uniqueName = `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`;
+        const safeName = sanitizeFilename(file.originalname);
+        const uniqueName = `${Date.now()}-${safeName}`;
         cb(null, uniqueName);
       },
     }),
