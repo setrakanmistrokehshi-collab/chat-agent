@@ -24,37 +24,59 @@ await connectDB();
 
 const app = express();
 
-app.use(cors()); // Allows all origins (for development)
-
-
-// ── CORS ──────────────────────────────────────────────────────────
+// ── CORS (single, correct configuration) ───────────────────────────
 const rawOrigins = process.env.ALLOWED_ORIGINS;
+
 if (!rawOrigins && process.env.NODE_ENV === "production") {
   throw new Error("ALLOWED_ORIGINS must be set in production");
 }
+
 const allowedOrigins = (rawOrigins || "http://localhost:5173")
   .split(",")
-  .map((o) => o.trim())
+  .map((o) => o.trim().replace(/\/$/, "")) // remove trailing slash
   .filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin))
-        return callback(null, true);
-      callback(new Error(`CORS: origin ${origin} not allowed`));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
-  }),
-);
+const corsOptions = {
+  origin: (origin, callback) => {
+    
+    if (!origin) return callback(null, true);
 
+    const normalized = origin.replace(/\/$/, "");
+
+    if (allowedOrigins.includes(normalized)) {
+      return callback(null, true);
+    }
+
+    console.warn(`CORS blocked origin: ${origin}`);
+    // Important: use callback(null, false) — do NOT pass an Error
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Request-ID",
+    "X-Requested-With",
+  ],
+  exposedHeaders: ["X-Request-ID"],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+// Explicitly handle preflight for all routes
+app.options("*", cors(corsOptions));
+
+// ── Body parsers ───────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
-if (process.env.NODE_ENV !== "production") app.use(morgan("dev"));
 
-// Serve locally stored uploads/generated files as static assets
+// ── Logging ────────────────────────────────────────────────────────
+if (process.env.NODE_ENV !== "production") {
+  app.use(morgan("dev"));
+}
+
+// ── Static uploads ─────────────────────────────────────────────────
 app.use(
   "/uploads",
   express.static(
@@ -62,21 +84,26 @@ app.use(
   ),
 );
 
+// ── Health check ───────────────────────────────────────────────────
 app.get("/api/health", (req, res) =>
   res.json({ status: "ok", provider: process.env.AI_PROVIDER }),
 );
 
+// ── Routes ─────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/files", fileRoutes);
 
+// ── Error handlers ─────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 
+// ── Start server ───────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(
     `Server running on port ${PORT} | AI provider: ${process.env.AI_PROVIDER}`,
   );
+  
 });
