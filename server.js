@@ -24,6 +24,9 @@ await connectDB();
 
 const app = express();
 
+app.use(cors()); // Allows all origins (for development)
+
+
 // ── CORS ──────────────────────────────────────────────────────────
 const rawOrigins = process.env.ALLOWED_ORIGINS;
 if (!rawOrigins && process.env.NODE_ENV === "production") {
